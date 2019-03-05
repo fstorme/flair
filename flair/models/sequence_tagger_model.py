@@ -80,6 +80,21 @@ class SequenceTagger(flair.nn.Model):
                  locked_dropout: float = 0.5,
                  pickle_module: str = 'pickle'
                  ):
+        """
+
+        :param hidden_size: hidden size for the RNN inbetween the embeddings and the CRF
+        :param embeddings: embeddings used
+        :param tag_dictionary: dictionnary containing the different possible tags
+        :param tag_type: type of the sequence tagging operation for example NER, POS...
+        :param use_crf: use a conditional random field (CRF) as a final classification layer, if False: a simple
+                        classification layer is used
+        :param use_rnn: use a bi-LSTM layer between the embeddings and the final classification layer
+        :param rnn_layers: number of bi-LSTM layers used
+        :param dropout: dropout rate between the embeddings and the subsequent layers
+        :param word_dropout: word dropout rate
+        :param locked_dropout: locked dropout rate TODO:Find what it does exactly
+        :param pickle_module: pickle module used when saving the model
+        """
 
         super(SequenceTagger, self).__init__()
 
@@ -144,6 +159,7 @@ class SequenceTagger(flair.nn.Model):
         else:
             self.linear = torch.nn.Linear(self.embeddings.embedding_length, len(tag_dictionary))
 
+        # initialization of the transitions rate for the CRF
         if self.use_crf:
             self.transitions = torch.nn.Parameter(
                 torch.randn(self.tagset_size, self.tagset_size))
@@ -168,6 +184,11 @@ class SequenceTagger(flair.nn.Model):
             torch.save(model_state, str(model_file), pickle_protocol=pickle_protocol)
 
     def save(self, model_file: Union[str, Path]):
+        """
+        Save the SequenceTagger instance to a pickle file
+        :param model_file: file in which the file is saved
+        :return:
+        """
         model_state = {
             'state_dict': self.state_dict(),
             'embeddings': self.embeddings,
@@ -264,6 +285,12 @@ class SequenceTagger(flair.nn.Model):
 
     def forward_labels_and_loss(self, sentences: Union[List[Sentence], Sentence],
                                 sort=True) -> (List[List[Label]], torch.tensor):
+        """
+        Compute the tags and loss for an ensemble of Sentence objects
+        :param sentences: enesmble of Sentence objects
+        :param sort: binary variable if true the Sentence objects are sorted by length
+        :return: the tags and loss
+        """
         with torch.no_grad():
             feature, lengths, tags = self.forward(sentences, sort=sort)
             loss = self._calculate_loss(feature, lengths, tags)
@@ -272,7 +299,14 @@ class SequenceTagger(flair.nn.Model):
 
     def predict(self, sentences: Union[List[Sentence], Sentence],
                 mini_batch_size=32, verbose=False) -> List[Sentence]:
-        with torch.no_grad():
+        """
+        Apply the model to an ensemble of Sentence objects
+        :param sentences: ensemble of Sentence objects for which the model predict the tags
+        :param mini_batch_size: number of Sentence in the mini-batch used for prediction
+        :param verbose:
+        :return: list of Sentence objects tagged according to the model
+        """
+        with torch.no_grad():  # forbid the use of back-prop
             if isinstance(sentences, Sentence):
                 sentences = [sentences]
 
@@ -310,6 +344,12 @@ class SequenceTagger(flair.nn.Model):
             return sentences
 
     def forward(self, sentences: List[Sentence], sort=True):
+        """
+        Method that applies the model to a list of Sentence, back-prop is possible here
+        :param sentences: list of Sentence object on which the model is applied
+        :param sort: binary to sort the Sentence objects with respect to their length
+        :return:
+        """
         self.zero_grad()
 
         self.embeddings.embed(sentences)
